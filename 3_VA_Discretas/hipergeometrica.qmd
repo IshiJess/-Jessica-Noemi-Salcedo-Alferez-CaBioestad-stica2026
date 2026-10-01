@@ -1,0 +1,431 @@
+---
+title: "Distribución Hipergeométrica"
+lang: es
+---
+
+```{=html}
+<style>
+main.content {
+text-align: justify}
+</style>
+```
+
+```{r}
+#| label: setup
+#| include: false
+
+library(tidyverse)
+library(kableExtra)
+library(gridExtra)
+```
+
+La **distribución hipergeométrica** es una distribución de probabilidad discreta que modela el número de eventos exitosos en una muestra de tamaño fijo extraída **sin reemplazo** de una población finita en la que se conoce el número total de elementos con la característica de interés. A diferencia de la distribución binomial, las extracciones no son independientes porque no hay reemplazo.
+
+::: {#def-hipergeometrica}
+Una variable aleatoria $X$ sigue una distribución hipergeométrica si representa el número de éxitos en una muestra de tamaño $n$ extraída sin reemplazo de una población de tamaño $N$ que contiene $K$ elementos catalogados como éxitos. La función de probabilidad está dada por:
+
+$$f(x) = P(X = x) = \frac{\binom{K}{x} \binom{N - K}{n - x}}{\binom{N}{n}}$$
+
+para los valores de $x$ que satisfacen $\max(0, n - (N - K)) \leq x \leq \min(n, K)$.
+
+Una variable aleatoria $X$ que tiene distribución hipergeométrica será denotada como $X \sim \text{hiper}(N, K, n)$.
+:::
+
+## Características de la Distribución Hipergeométrica
+
+**Parámetros**
+
+-   $N$: tamaño total de la población.
+-   $K$: número total de éxitos en la población ($0 \leq K \leq N$).
+-   $n$: tamaño de la muestra extraída sin reemplazo ($0 \leq n \leq N$).
+
+**Función de Distribución Acumulada**
+
+\begin{equation}
+F(x) = P(X \leq x) = \sum_{u=0}^{x} \frac{\binom{K}{u} \binom{N - K}{n - u}}{\binom{N}{n}}
+\end{equation}
+
+**Parámetros Estadísticos**
+
+Esperanza (Media): $$E(X) = n \frac{K}{N}$$
+
+Varianza: $$\text{Var}(X) = n \left(\frac{K}{N}\right) \left(1 - \frac{K}{N}\right) \left(\frac{N - n}{N - 1}\right)$$
+
+*Nota:* El término $\frac{N - n}{N - 1}$ se conoce como el **factor de corrección para población finita**.
+
+Desviación Estándar: $$\sigma = \sqrt{n \left(\frac{K}{N}\right) \left(1 - \frac{K}{N}\right) \left(\frac{N - n}{N - 1}\right)}$$
+
+## Ejemplo Básico
+
+::: {#exm-hiper_1}
+Extracción de cartas o bolas en urna: Consideremos una urna que contiene un total de $N = 20$ bolas, de las cuales $K = 8$ son rojas (éxitos) y 12 son blancas. Si extraemos una muestra de $n = 5$ bolas sin reemplazo, queremos modelar el número de bolas rojas obtenidas en la muestra.
+
+```{r}
+#| label: urna-hipergeometrica
+#| code-fold: true
+
+# Parámetros
+N_tot <- 20
+K_exito <- 8
+n_muestra <- 5
+
+# Valores posibles de x (número de éxitos en la muestra)
+x_vals <- max(0, n_muestra - (N_tot - K_exito)):min(n_muestra, K_exito)
+
+# Calcular probabilidades (dhyper)
+prob_hiper <- dhyper(x_vals, K_exito, N_tot - K_exito, n_muestra)  
+
+# Crear tabla
+hiper_tabla <- data.frame(
+  Exitos = x_vals,
+  Probabilidad = prob_hiper,
+  Prob_Acumulada = phyper(x_vals, K_exito, N_tot - K_exito, n_muestra)
+)
+
+kable(hiper_tabla, 
+      caption = "Distribución Hipergeométrica - Extracción de bolas rojas (N=20, K=8, n=5)",
+      digits = 4,
+      col.names = c("Éxitos (x)", "P(X = x)", "P(X ≤ x)")) %>%
+  kable_styling(bootstrap_options = "striped")
+
+# Parámetros estadísticos
+media_hiper <- n_muestra * (K_exito / N_tot)
+varianza_hiper <- n_muestra * (K_exito / N_tot) * (1 - K_exito / N_tot) * ((N_tot - n_muestra) / (N_tot - 1))
+desv_std_hiper <- sqrt(varianza_hiper)
+
+cat("Media (éxitos esperados):", media_hiper, "\n")
+cat("Varianza:", round(varianza_hiper, 4), "\n")
+cat("Desviación estándar:", round(desv_std_hiper, 4), "\n")
+
+```
+
+**Visualización**
+
+```{r}
+#| code-fold: true
+#| fig-align: center
+#| label: grafico-hipergeometrica-basico
+#| fig-cap: "Distribución Hipergeométrica - Bolas rojas en la muestra"
+
+ggplot(hiper_tabla, aes(x = factor(Exitos), y = Probabilidad)) +
+  geom_col(fill = "steelblue", alpha = 0.7, width = 0.8) +
+  geom_text(aes(label = round(Probabilidad, 3)), vjust = -0.5, size = 3.5) +
+  geom_vline(xintercept = media_hiper + 1, color = "red", linetype = "dashed", linewidth = 1) +
+  labs(title = paste("Distribución Hipergeométrica(N=", N_tot, ", K=", K_exito, ", n=", n_muestra, ")"),
+       subtitle = "Número de éxitos en la muestra sin reemplazo",
+       x = "Número de Éxitos (x)",
+       y = "Probabilidad") +
+  theme_minimal() +
+  theme(
+    legend.title = element_text(size=13, face="bold"),
+    legend.text = element_text(size=13),
+    plot.title = element_text(size=15, face="bold", hjust = 0.5),
+    plot.subtitle = element_text(size=13, hjust = 0.5),
+    axis.text.x=element_text(size=12),
+    axis.text.y=element_text(size=12),
+    axis.title.x = element_text(face="bold", size=13),
+    axis.title.y = element_text(face="bold", size=13)
+  )
+```
+:::
+
+## Comparación: Efecto del tamaño de muestra y proporción
+
+A continuación exploramos cómo cambia la distribución hipergeométrica al modificar la proporción de éxitos en la población para un tamaño de población fijo $N = 50$ y una muestra de $n = 10$.
+
+```{r}
+#| label: diferentes-parametros-hiper
+#| code-fold: true
+
+N_comp <- 50
+n_comp <- 15
+K_values <- c(10, 20, 30, 40)
+
+hiper_comp <- data.frame()
+for(K in K_values) {
+  x_v <- max(0, n_comp - (N_comp - K)):min(n_comp, K)
+  probs <- dhyper(x_v, K, N_comp - K, n_comp)  
+  
+  temp_data <- data.frame(
+    K_label = paste("K =", K, "(p =", K/N_comp, ")"),
+    x = x_v,
+    probabilidad = probs
+  )
+  hiper_comp <- rbind(hiper_comp, temp_data)
+}
+
+# Tabla de parámetros comparativos
+parametros_hiper_comp <- data.frame(
+  K = K_values,
+  Proporcion = K_values / N_comp,
+  Media = n_comp * (K_values / N_comp),
+  Varianza = n_comp * (K_values / N_comp) * (1 - K_values / N_comp) * ((N_comp - n_comp) / (N_comp - 1))
+)
+
+kable(parametros_hiper_comp, 
+      caption = "Parámetros de la distribución hipergeométrica para diferentes valores de K (N=50, n=15)",
+      digits = 4,
+      col.names = c("K", "Proporción (K/N)", "Media", "Varianza")) |> 
+  kable_styling(bootstrap_options = "striped")
+```
+
+```{r}
+#| label: grafico-diferentes-k
+#| code-fold: true
+#| fig-align: center
+#| fig-cap: "Distribución Hipergeométrica para diferentes proporciones de éxito en la población"
+
+ggplot(hiper_comp, aes(x = x, y = probabilidad, color = K_label)) +
+  geom_line(linewidth = 1, alpha = 0.8, show.legend = FALSE) +
+  geom_point(size = 2, show.legend = FALSE) +
+  facet_wrap(~K_label, scales = "free") +
+  labs(title = "Distribución Hipergeométrica con diferentes valores de K",
+       x = "Número de Éxitos en la Muestra",
+       y = "Probabilidad",
+       color = "Parámetro") +
+  theme_minimal() +
+  theme(
+    legend.title = element_text(size=13, face="bold"),
+    legend.text = element_text(size=13),
+    plot.title = element_text(size=15, face="bold", hjust = 0.5),
+    plot.subtitle = element_text(size=13, hjust = 0.5),
+    axis.text.x=element_text(size=12),
+    axis.text.y=element_text(size=12),
+    axis.title.x = element_text(face="bold", size=13),
+    axis.title.y = element_text(face="bold", size=13)
+  )
+```
+
+## Propiedades Importantes
+
+### Relación con la Distribución Binomial
+
+Cuando el tamaño de la población $N$ es muy grande en comparación con el tamaño de la muestra $n$ (generalmente se acepta cuando la muestra representa menos del 5% de la población, es decir, $n / N < 0.05$), la falta de reemplazo tiene un efecto casi imperceptible. En este escenario, la distribución hipergeométrica puede aproximarse adecuadamente mediante una **distribución binomial** con parámetros $n$ y $p = K/N$.
+
+$$ \lim_{N \to \infty} \text{Hiper}(N, K, n) = \text{Binomial}\left(n, p = \frac{K}{N}\right) $$
+
+### Simetría de la Distribución
+
+La distribución hipergeométrica es simétrica cuando la proporción de éxitos en la población es $K/N = 0.5$ y además se presentan ciertas condiciones de simetría en los parámetros de muestreo, aunque en general presenta asimetría dependiendo de la composición de la urna o población.
+
+## Ejemplos Aplicados
+
+::: {#exm-hiper_calidad}
+**Control de Calidad: Inspección de Lotes**
+
+Un lote consta de $N = 50$ artículos fabricados, de los cuales $K = 5$ son defectuosos. Si un inspector selecciona una muestra aleatoria de $n = 10$ artículos sin reemplazo, ¿cuál es la probabilidad de encontrar exactamente 1 artículo defectuoso? ¿Y a lo sumo 2?
+
+```{r}
+#| label: control-calidad-hiper
+#| code-fold: true
+#| fig-align: center
+
+N_lote <- 50
+K_def <- 5
+n_insp <- 10
+
+# Parámetros estadísticos
+media_lote <- n_insp * (K_def / N_lote)
+varianza_lote <- n_insp * (K_def / N_lote) * (1 - K_def / N_lote) * ((N_lote - n_insp) / (N_lote - 1))
+desv_std_lote <- sqrt(varianza_lote)
+
+cat("Control de Lotes - Artículos Defectuosos:\n")
+cat("Población (N):", N_lote, "| Defectuosos en población (K):", K_def, "| Muestra (n):", n_insp, "\n")
+cat("Número esperado de defectuosos en la muestra:", media_lote, "\n")
+cat("Desviación estándar:", round(desv_std_lote, 4), "\n\n")
+
+# Probabilidades específicas
+x_insp <- max(0, n_insp - (N_lote - K_def)):min(n_insp, K_def)
+prob_insp <- dhyper(x_insp, K_def, N_lote - K_def, n_insp)
+
+# Preguntas de interés
+prob_exacto_1 <- dhyper(1, K_def, N_lote - K_def, n_insp)
+prob_acum_2 <- phyper(2, K_def, N_lote - K_def, n_insp)
+
+cat("Probabilidades de interés:\n")
+cat("P(X = 1 defectuoso):", round(prob_exacto_1, 4), "\n")
+cat("P(X ≤ 2 defectuosos):", round(prob_acum_2, 4), "\n")
+
+# Visualización
+calidad_hiper_data <- data.frame(
+  x = x_insp,
+  probabilidad = prob_insp
+)
+
+ggplot(calidad_hiper_data, aes(x = x, y = probabilidad)) +
+  geom_col(fill = "darkgreen", alpha = 0.7, width = 0.8) +
+  geom_vline(xintercept = media_lote, color = "red", linetype = "dashed", linewidth = 1) +
+  annotate("text", x = media_lote + 0.8, y = max(prob_insp) * 0.8, 
+           label = paste("E(X) =", media_lote), color = "red") +
+  labs(title = "Control de Calidad: Artículos Defectuosos en Muestra",
+       subtitle = paste("Hipergeométrica(N=", N_lote, ", K=", K_def, ", n=", n_insp, ")"),
+       x = "Número de Defectuosos en la Muestra",
+       y = "Probabilidad") +
+  theme_minimal() +
+  theme(
+    legend.title = element_text(size=13, face="bold"),
+    legend.text = element_text(size=13),
+    plot.title = element_text(size=15, face="bold", hjust = 0.5),
+    plot.subtitle = element_text(size=13, hjust = 0.5),
+    axis.text.x=element_text(size=12),
+    axis.text.y=element_text(size=12),
+    axis.title.x = element_text(face="bold", size=13),
+    axis.title.y = element_text(face="bold", size=13)
+  )
+```
+:::
+
+## Simulación: Validación de propiedades teóricas
+
+```{r}
+#| label: simulacion-hipergeometrica
+#| code-fold: true
+
+N_sim <- 100
+K_sim <- 30
+n_sim <- 20
+num_replicas <- 10000
+
+# Generar datos hipergeométricos mediante simulación (rhyper)
+datos_hiper <- rhyper(num_replicas, K_sim, N_sim - K_sim, n_sim) 
+
+# Estadísticas observadas
+media_obs <- mean(datos_hiper)
+var_obs <- var(datos_hiper)
+desv_obs <- sd(datos_hiper)
+
+# Valores teóricos
+media_teo <- n_sim * (K_sim / N_sim)
+var_teo <- n_sim * (K_sim / N_sim) * (1 - K_sim / N_sim) * ((N_sim - n_sim) / (N_sim - 1))
+desv_teo <- sqrt(var_teo)
+
+cat("Simulación Hipergeométrica (N =", N_sim, ", K =", K_sim, ", n =", n_sim, "):\n")
+cat("Réplicas:", num_replicas, "\n\n")
+cat("Media teórica:", media_teo, "| Media observada:", round(media_obs, 4), "\n")
+cat("Varianza teórica:", round(var_teo, 4), "| Varianza observada:", round(var_obs, 4), "\n")
+cat("Desv. Std teórica:", round(desv_teo, 4), "| Desv. Std observada:", round(desv_obs, 4), "\n")
+
+# Comparar distribuciones
+freq_obs <- table(datos_hiper) / num_replicas
+x_comp <- as.numeric(names(freq_obs))
+prob_teo <- dhyper(x_comp, K_sim, N_sim - K_sim, n_sim)
+
+comparacion_sim_hiper <- data.frame(
+  x = x_comp,
+  Freq_Observada = as.numeric(freq_obs),
+  Prob_Teorica = prob_teo,
+  Diferencia = abs(as.numeric(freq_obs) - prob_teo)
+)
+
+kable(comparacion_sim_hiper, 
+      caption = "Comparación frecuencias observadas vs probabilidades teóricas (Simulación)",
+      digits = 4,
+      col.names = c("x", "Freq. Observada", "Prob. Teórica", "Diferencia")) %>%
+  kable_styling(bootstrap_options = "striped")
+```
+
+## Ejercicios Propuestos
+
+::: {#exr-hiper_1}
+En un estanque hay 15 peces, de los cuales 6 han sido marcados previamente con un identificador científico. Si se capturan al azar 4 peces en un solo intento (sin reemplazo):
+
+-   a) ¿Cuál es la probabilidad de capturar exactamente 2 peces marcados?
+```{r}
+m_peces <- 6
+n_peces <- 15 - m_peces  # 9 peces no marcados
+k_peces <- 4
+
+prob_a <- dhyper(x = 2, m = m_peces, n = n_peces, k = k_peces)
+cat("a) P(X = 2) =", round(prob_a, 4), "(", round(prob_a * 100, 2), "%)\n")
+```
+
+-   b) ¿Cuál es la probabilidad de capturar a lo sumo 1 pez marcado?
+```{r}
+prob_b <- phyper(q = 1, m = m_peces, n = n_peces, k = k_peces)
+cat("b) P(X <= 1) =", round(prob_b, 4), "(", round(prob_b * 100, 2), "%)\n")
+```
+-   c) Calcule el valor esperado y la varianza del número de peces marcados en la muestra.
+```{r}
+N_total <- m_peces + n_peces
+esperanza_1 <- k_peces * (m_peces / N_total)
+varianza_1  <- k_peces * (m_peces / N_total) * (n_peces / N_total) * ((N_total - k_peces) / (N_total - 1))
+
+cat("c) Valor Esperado E[X] =", round(esperanza_1, 4), "\n")
+cat("   Varianza Var(X) =", round(varianza_1, 4), "\n")
+```
+:::
+
+::: {#exr-hiper_2}
+Un comité directivo está formado por 12 personas, de las cuales 7 son ingenieras y 5 son administradoras. Se selecciona una subcomisión de 4 integrantes al azar de forma simultánea.
+
+-   a) ¿Cuál es la probabilidad de que la subcomisión esté integrada exactamente por 3 ingenieras?
+```{r}
+m_comite <- 7  # Ingenieras
+n_comite <- 5  # Administradoras
+k_comite <- 4  # Subcomision (tamaño)
+
+prob_2a <- dhyper(x = 3, m = m_comite, n = n_comite, k = k_comite)
+cat("a) P(Ingenieras = 3) =", round(prob_2a, 4), "\n")
+```
+
+-   b) ¿Cuántas personas ingenieras se espera que formen parte de la subcomisión?
+```{r}
+m_comite <- 7  # Ingenieras
+n_comite <- 5  # Administradoras
+k_comite <- 4  # Subcomision (tamaño)
+
+esperanza_2 <- k_comite * (m_comite / (m_comite + n_comite))
+cat("b) Número esperado de ingenieras:", round(esperanza_2, 4), "\n")
+
+```
+-   c) ¿Cuál es la probabilidad de que haya al menos una persona administradora en la subcomisión?
+```{r}
+m_comite <- 7  # Ingenieras
+n_comite <- 5  # Administradoras
+k_comite <- 4  # Subcomision (tamaño)
+
+prob_2c <- 1 - dhyper(x = 4, m = m_comite, n = n_comite, k = k_comite)
+cat("c) P(Admin >= 1) =", round(prob_2c, 4), "\n")
+```
+
+:::
+
+::: {#exr-hiper_3}
+Una caja contiene 40 comprimidos farmacéuticos, de los cuales 8 tienen un defecto en su cubierta externa. Se extraen 6 comprimidos para una prueba de control de calidad.
+
+-   a) Calcule la probabilidad de que exactamente 2 comprimidos salgan defectuosos.
+```{r}
+m_comp <- 8   # Defectuosos
+n_comp <- 32  # Buenos (40 - 8)
+k_comp <- 6   # Muestra
+
+prob_3a_hiper <- dhyper(x = 2, m = m_comp, n = n_comp, k = k_comp)
+cat("a) Probabilidad (Hipergeométrica) P(X = 2) =", round(prob_3a_hiper, 4), "\n")
+```
+
+-   b) Compare el resultado obtenido con la aproximación utilizando la distribución binomial con $n = 6$ y $p = 8/40$. ¿Qué tan cercana es la aproximación?
+```{r}
+m_comp <- 8   # Defectuosos
+n_comp <- 32  # Buenos (40 - 8)
+k_comp <- 6   # Muestra
+
+prob_3b_binom <- dbinom(x = 2, size = 6, prob = 8/40)
+diferencia <- abs(prob_3a_hiper - prob_3b_binom)
+
+cat("b) Probabilidad (Aproximación Binomial) =", round(prob_3b_binom, 4), "\n")
+cat("   Diferencia absoluta entre ambas:", round(diferencia, 4), "\n")
+```
+
+-   c) Determine la desviación estándar del número de comprimidos defectuosos en la muestra.
+```{r}
+m_comp <- 8   # Defectuosos
+n_comp <- 32  # Buenos (40 - 8)
+k_comp <- 6   # Muestra
+
+N_3 <- m_comp + n_comp
+var_3 <- k_comp * (m_comp / N_3) * (n_comp / N_3) * ((N_3 - k_comp) / (N_3 - 1))
+desv_estandar <- sqrt(var_3)
+
+cat("c) Desviación estándar =", round(desv_estandar, 4), "\n")
+```
+:::
