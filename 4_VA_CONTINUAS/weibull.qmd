@@ -1,0 +1,1066 @@
+---
+title: "Distribución Weibull"
+lang: es
+format:
+  html:
+    toc: true
+    code-fold: false
+    embed-resources: true
+    css: styles.css
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+```{=html}
+<style>
+main.content {
+text-align: justify}
+</style>
+```
+
+```{r}
+#| label: setup
+#| include: false
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(gridExtra)
+library(knitr)
+library(kableExtra)
+library(RColorBrewer)
+library(plotly)
+library(scales)
+library(viridis)
+```
+
+La distribución Weibull es una de las distribuciones continuas más utilizadas en **análisis de confiabilidad**, **análisis de supervivencia** y modelación de **tiempos de vida**. Su gran flexibilidad proviene de que, según el valor de su parámetro de forma, puede describir fallas tempranas, fallas con tasa constante o fallas por desgaste. Incluye como casos particulares a la distribución exponencial y a la distribución Rayleigh.
+
+Este documento desarrolla la distribución siguiendo como referencia principal el libro *Introducción a la Probabilidad* de Luis Rincón (pp. 278-281).
+
+::: callout-note
+**Nota sobre la parametrización.** Aquí uso la parametrización de forma $\alpha$ y escala $\beta$, que es la misma que utiliza R en `dweibull(x, shape = α, scale = β)`. Algunos textos (incluido el libro de Rincón) escriben la densidad con el parámetro $\lambda = 1/\beta$, es decir, $f(x) = \alpha\lambda(\lambda x)^{\alpha-1}e^{-(\lambda x)^\alpha}$. Ambas formas son equivalentes y basta sustituir $\lambda = 1/\beta$.
+:::
+
+# Función de densidad de probabilidad
+
+::: {#def-weibull}
+Decimos que una variable aleatoria $X$ tiene una distribución Weibull con parámetro de forma $\alpha>0$ y parámetro de escala $\beta>0$, y escribimos $X \sim \text{Weibull}(\alpha, \beta)$, si su función de densidad de probabilidad es:
+
+\begin{equation}
+f(x) = \begin{cases}
+\dfrac{\alpha}{\beta}\left(\dfrac{x}{\beta}\right)^{\alpha-1} e^{-(x/\beta)^{\alpha}} & \text{si } x \geq 0 \\
+0 & \text{en otro caso}
+\end{cases}
+\end{equation}
+:::
+
+Los parámetros de la distribución son:
+
+- $\alpha > 0$ es el **parámetro de forma**: determina la forma de la curva y el comportamiento de la tasa de falla.
+- $\beta > 0$ es el **parámetro de escala**: estira o comprime la distribución sobre el eje $x$. Es el *percentil 63.2* de la distribución, pues $F(\beta) = 1 - e^{-1} \approx 0.632$ para cualquier $\alpha$.
+
+## Propiedades de la función de densidad
+
+Nótese que la función de densidad cumple con las siguientes propiedades fundamentales:
+
+1.  **No negatividad:** $f(x) \geq 0$ para todo $x \in \mathbb{R}$.
+2.  **Normalización:** $\displaystyle\int_{-\infty}^{\infty} f(x)\,dx = 1$.
+
+Para verificar la normalización, se hace el cambio de variable $u = (x/\beta)^{\alpha}$, de donde $du = \dfrac{\alpha}{\beta}\left(\dfrac{x}{\beta}\right)^{\alpha-1}dx$. Entonces:
+
+\begin{equation}
+\int_0^{\infty} \frac{\alpha}{\beta}\left(\frac{x}{\beta}\right)^{\alpha-1} e^{-(x/\beta)^{\alpha}}\,dx = \int_0^{\infty} e^{-u}\,du = 1
+\end{equation}
+
+## Representación gráfica
+
+La forma de la densidad depende fuertemente del parámetro $\alpha$. A continuación se presentan gráficos de la función de densidad al variar cada parámetro.
+
+### Efecto del parámetro de forma $\alpha$ (con $\beta = 1$ fijo)
+
+```{r}
+#| label: pdf-forma
+x_range <- seq(0, 3, length.out = 1000)
+alphas <- c(0.5, 1, 1.5, 2, 3, 5)
+
+df_pdf_forma <- expand.grid(x = x_range, alpha = alphas) |>
+  mutate(d_prob = dweibull(x, shape = alpha, scale = 1),
+         Distribucion = factor(paste0("α = ", alpha),
+                               levels = paste0("α = ", alphas)))
+
+pdf_forma <- ggplot(df_pdf_forma) +
+  geom_line(aes(x = x, y = d_prob, color = Distribucion), linewidth = 1.3) +
+  coord_cartesian(ylim = c(0, 2.5)) +
+  labs(title = "PDF - Distribución Weibull (β = 1)",
+       x = "x", y = "f(x)",
+       color = "Parámetro de forma") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, size = 14),
+        legend.position = "bottom") +
+  scale_color_brewer(palette = "Set1")
+
+ggplotly(pdf_forma)
+```
+
+Se observa que:
+
+- Si $\alpha < 1$, la densidad es estrictamente decreciente y tiende a $\infty$ cuando $x \to 0^+$.
+- Si $\alpha = 1$, la densidad es la de una exponencial: $f(0) = 1/\beta$.
+- Si $\alpha > 1$, la densidad es unimodal con $f(0) = 0$; la moda se desplaza hacia la derecha y la curva se vuelve más simétrica conforme $\alpha$ crece.
+
+### Efecto del parámetro de escala $\beta$ (con $\alpha = 2$ fijo)
+
+```{r}
+#| label: pdf-escala
+x_range2 <- seq(0, 10, length.out = 1000)
+betas <- c(1, 2, 3, 5)
+
+df_pdf_escala <- expand.grid(x = x_range2, beta = betas) |>
+  mutate(d_prob = dweibull(x, shape = 2, scale = beta),
+         Distribucion = factor(paste0("β = ", beta),
+                               levels = paste0("β = ", betas)))
+
+pdf_escala <- ggplot(df_pdf_escala) +
+  geom_line(aes(x = x, y = d_prob, color = Distribucion), linewidth = 1.3) +
+  labs(title = "PDF - Distribución Weibull (α = 2)",
+       x = "x", y = "f(x)",
+       color = "Parámetro de escala") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, size = 14),
+        legend.position = "bottom") +
+  scale_color_manual(values = c("firebrick", "dodgerblue2", "darkolivegreen", "darkorange"))
+
+ggplotly(pdf_escala)
+```
+
+Al aumentar $\beta$ la distribución se *estira* hacia la derecha y la altura de la curva disminuye, de modo que el área total sigue siendo 1.
+
+## Casos particulares
+
+|  Valor de $\alpha$   | Distribución resultante                          |
+|:--------------------:|:-------------------------------------------------|
+|     $\alpha = 1$     | Exponencial con parámetro $\lambda = 1/\beta$    |
+|     $\alpha = 2$     | Rayleigh con parámetro $\sigma = \beta/\sqrt{2}$ |
+| $\alpha \approx 3.6$ | Aproxima una distribución normal (asimetría ≈ 0) |
+
+Para $\alpha = 1$: $f(x) = \dfrac{1}{\beta}e^{-x/\beta}$, que es la densidad exponencial.
+
+```{r}
+#| label: caso-exponencial
+# Verificación numérica: Weibull(1, β) coincide con Exponencial(1/β)
+x_chk <- seq(0.1, 5, length.out = 6)
+beta_chk <- 2
+data.frame(x = x_chk,
+           weibull = dweibull(x_chk, shape = 1, scale = beta_chk),
+           exponencial = dexp(x_chk, rate = 1 / beta_chk)) |>
+  kable(caption = "Weibull(1, 2) vs Exponencial(tasa = 1/2)", digits = 6) |>
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+```
+
+## Continuidad y diferenciabilidad
+
+La función de densidad Weibull es:
+
+- Continua para todo $x > 0$.
+- En $x = 0$ se comporta según $\alpha$: si $\alpha > 1$ vale 0, si $\alpha = 1$ vale $1/\beta$ y si $\alpha < 1$ diverge.
+- Diferenciable para todo $x > 0$.
+
+# Función de distribución (CDF, probabilidad acumulada)
+
+::: {#def-cdf_weibull}
+La función de distribución acumulativa (CDF) de una variable aleatoria $X \sim \text{Weibull}(\alpha, \beta)$ está definida como:
+
+\begin{equation}
+F(x) = P(X \leq x) = \begin{cases}
+0 & \text{si } x < 0 \\
+1 - e^{-(x/\beta)^{\alpha}} & \text{si } x \geq 0
+\end{cases}
+\end{equation}
+:::
+
+Para $x \geq 0$, la función de distribución se obtiene integrando la función de densidad, con el cambio de variable $u = (t/\beta)^{\alpha}$:
+
+\begin{equation}
+F(x) = \int_0^x \frac{\alpha}{\beta}\left(\frac{t}{\beta}\right)^{\alpha-1} e^{-(t/\beta)^{\alpha}}\,dt = \int_0^{(x/\beta)^{\alpha}} e^{-u}\,du = 1 - e^{-(x/\beta)^{\alpha}}
+\end{equation}
+
+## Función de supervivencia y tasa de falla
+
+En confiabilidad es muy común trabajar con la **función de supervivencia** (o de confiabilidad):
+
+\begin{equation}
+S(x) = P(X > x) = 1 - F(x) = e^{-(x/\beta)^{\alpha}}
+\end{equation}
+
+y con la **tasa de falla** (función de riesgo):
+
+\begin{equation}
+h(x) = \frac{f(x)}{S(x)} = \frac{\alpha}{\beta}\left(\frac{x}{\beta}\right)^{\alpha-1}
+\end{equation}
+
+La tasa de falla es una potencia de $x$, por lo que su comportamiento queda determinado por $\alpha$:
+
+- $\alpha < 1$: tasa de falla **decreciente** (fallas tempranas o "mortalidad infantil").
+- $\alpha = 1$: tasa de falla **constante** (propiedad de pérdida de memoria de la exponencial).
+- $\alpha > 1$: tasa de falla **creciente** (desgaste o envejecimiento).
+
+```{r}
+#| label: hazard-grafico
+x_h <- seq(0.01, 3, length.out = 500)
+alphas_h <- c(0.5, 1, 2, 3)
+
+df_h <- expand.grid(x = x_h, alpha = alphas_h) |>
+  mutate(h = (alpha / 1) * (x / 1)^(alpha - 1),
+         Distribucion = factor(paste0("α = ", alpha),
+                               levels = paste0("α = ", alphas_h)))
+
+ggplot(df_h) +
+  geom_line(aes(x = x, y = h, color = Distribucion), linewidth = 1.3) +
+  coord_cartesian(ylim = c(0, 8)) +
+  labs(title = "Tasa de falla - Distribución Weibull (β = 1)",
+       x = "x", y = "h(x)", color = "Parámetro de forma") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, size = 14),
+        legend.position = "bottom") +
+  scale_color_brewer(palette = "Set1")
+```
+
+## Representación gráfica de la CDF
+
+```{r}
+#| label: cdf-forma
+df_cdf_forma <- expand.grid(x = x_range, alpha = alphas) |>
+  mutate(y = pweibull(x, shape = alpha, scale = 1),
+         Distribucion = factor(paste0("α = ", alpha),
+                               levels = paste0("α = ", alphas)))
+
+cdf_forma <- ggplot(df_cdf_forma) +
+  geom_line(aes(x = x, y = y, color = Distribucion), linewidth = 1.3) +
+  geom_hline(yintercept = c(0, 1), linetype = "dashed", alpha = 0.5) +
+  geom_hline(yintercept = 1 - exp(-1), linetype = "dotted", color = "gray30") +
+  labs(title = "CDF - Distribución Weibull (β = 1)",
+       subtitle = "La línea punteada marca F(β) = 1 - e⁻¹ ≈ 0.632",
+       x = "x", y = "F(x) = P(X ≤ x)",
+       color = "Parámetro de forma") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, size = 14),
+        plot.subtitle = element_text(hjust = 0.5),
+        legend.position = "bottom") +
+  scale_color_brewer(palette = "Set1")
+
+ggplotly(cdf_forma)
+```
+
+```{r}
+#| label: cdf-escala
+df_cdf_escala <- expand.grid(x = x_range2, beta = betas) |>
+  mutate(y = pweibull(x, shape = 2, scale = beta),
+         Distribucion = factor(paste0("β = ", beta),
+                               levels = paste0("β = ", betas)))
+
+cdf_escala <- ggplot(df_cdf_escala) +
+  geom_line(aes(x = x, y = y, color = Distribucion), linewidth = 1.3) +
+  geom_hline(yintercept = c(0, 1), linetype = "dashed", alpha = 0.5) +
+  labs(title = "CDF - Distribución Weibull (α = 2)",
+       x = "x", y = "F(x) = P(X ≤ x)",
+       color = "Parámetro de escala") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, size = 14),
+        legend.position = "bottom") +
+  scale_color_manual(values = c("firebrick", "dodgerblue2", "darkolivegreen", "darkorange"))
+
+ggplotly(cdf_escala)
+```
+
+## Propiedades fundamentales de la función de distribución
+
+La función de distribución Weibull cumple con todas las propiedades de una CDF:
+
+1.  **Monótona no decreciente:** $F(x_1) \leq F(x_2)$ si $x_1 \leq x_2$.
+2.  **Continua por la derecha** (de hecho, es continua en todo $\mathbb{R}$).
+3.  **Límites:** $\lim_{x \to -\infty} F(x) = 0$ y $\lim_{x \to \infty} F(x) = 1$.
+
+## Cálculo de probabilidades
+
+La función de distribución permite calcular probabilidades de intervalos. Para $0 \leq c \leq d$:
+
+\begin{equation}
+P(c \leq X \leq d) = F(d) - F(c) = e^{-(c/\beta)^{\alpha}} - e^{-(d/\beta)^{\alpha}}
+\end{equation}
+
+Por ejemplo, para $X \sim \text{Weibull}(2, 3)$, la probabilidad de que $X$ esté entre 2 y 5 es:
+
+```{r}
+#| label: ejemplo-probabilidades
+# Ejemplo: Weibull(2, 3), calcular P(2 ≤ X ≤ 5)
+alpha_ej <- 2; beta_ej <- 3
+c_ej <- 2; d_ej <- 5
+
+prob_ejemplo <- pweibull(d_ej, shape = alpha_ej, scale = beta_ej) -
+  pweibull(c_ej, shape = alpha_ej, scale = beta_ej)
+
+# Visualización del cálculo de probabilidad
+x_ejemplo <- seq(0, 10, length.out = 1000)
+df_ejemplo <- data.frame(x = x_ejemplo,
+                         y = dweibull(x_ejemplo, shape = alpha_ej, scale = beta_ej))
+
+ggplot(df_ejemplo, aes(x = x, y = y)) +
+  geom_line(linewidth = 2, color = "blue") +
+  geom_area(data = filter(df_ejemplo, x >= c_ej & x <= d_ej),
+            alpha = 0.5, fill = "red") +
+  geom_vline(xintercept = c(c_ej, d_ej), linetype = "dashed", color = "red") +
+  scale_x_continuous(breaks = seq(0, 10, by = 2)) +
+  labs(title = paste0("P(2 ≤ X ≤ 5) = ", round(prob_ejemplo, 4), " para Weibull(2, 3)"),
+       x = "x", y = "f(x)") +
+  theme_minimal() +
+  annotate("text", x = 3.5, y = 0.1,
+           label = paste0("Área = ", round(prob_ejemplo, 4)), size = 6) +
+  theme(
+    legend.title = element_text(size = 13, face = "bold"),
+    legend.text = element_text(size = 13),
+    plot.title = element_text(size = 15, face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(size = 13, hjust = 0.5),
+    axis.text.x = element_text(size = 12),
+    axis.text.y = element_text(size = 12),
+    axis.title.x = element_text(face = "bold", size = 13),
+    axis.title.y = element_text(face = "bold", size = 13)
+  )
+```
+
+## Función cuantil
+
+Al despejar $x$ de $F(x) = p$ se obtiene la función cuantil:
+
+\begin{equation}
+x_p = F^{-1}(p) = \beta\,\left[-\ln(1-p)\right]^{1/\alpha}, \qquad 0 < p < 1
+\end{equation}
+
+Esta expresión es la base para **simular** valores Weibull mediante el método de la transformada inversa: si $U \sim \text{unif}(0,1)$, entonces $X = \beta\left[-\ln(1-U)\right]^{1/\alpha} \sim \text{Weibull}(\alpha, \beta)$.
+
+# Parámetros y medidas descriptivas
+
+## Parámetros de la distribución
+
+La distribución Weibull está completamente caracterizada por dos parámetros:
+
+- $\alpha$ (forma): Parámetro que determina la forma de la densidad y de la tasa de falla.
+- $\beta$ (escala): Parámetro que determina la unidad de medida de la variable. Si $Y \sim \text{Weibull}(\alpha, 1)$, entonces $\beta Y \sim \text{Weibull}(\alpha, \beta)$.
+
+**Restricción:** Debe cumplirse que $\alpha > 0$ y $\beta > 0$.
+
+## Momentos
+
+Para obtener los momentos se utiliza nuevamente el cambio de variable $u = (x/\beta)^{\alpha}$, es decir, $x = \beta u^{1/\alpha}$:
+
+\begin{eqnarray}
+E(X^n) & = & \int_0^{\infty} x^n \frac{\alpha}{\beta}\left(\frac{x}{\beta}\right)^{\alpha-1} e^{-(x/\beta)^{\alpha}}\,dx \\
+& = & \int_0^{\infty} \left(\beta u^{1/\alpha}\right)^n e^{-u}\,du = \beta^n \int_0^{\infty} u^{n/\alpha} e^{-u}\,du \\
+& = & \beta^n\,\Gamma\!\left(1 + \frac{n}{\alpha}\right)
+\end{eqnarray}
+
+donde $\Gamma(z) = \int_0^\infty u^{z-1}e^{-u}\,du$ es la función Gamma.
+
+## Medidas de tendencia central
+
+### Media (Esperanza)
+
+Tomando $n = 1$ en la fórmula anterior:
+
+\begin{equation}
+\mu = E(X) = \beta\,\Gamma\!\left(1 + \frac{1}{\alpha}\right)
+\end{equation}
+
+### Mediana
+
+La mediana $M$ satisface $F(M) = 0.5$, es decir $1 - e^{-(M/\beta)^\alpha} = 0.5$, de donde:
+
+\begin{equation}
+M = \beta\,(\ln 2)^{1/\alpha}
+\end{equation}
+
+### Moda
+
+La moda es el valor donde la densidad alcanza su máximo. Derivando $\ln f(x)$ e igualando a cero:
+
+\begin{equation}
+\frac{d}{dx}\ln f(x) = \frac{\alpha-1}{x} - \frac{\alpha}{\beta}\left(\frac{x}{\beta}\right)^{\alpha-1} = 0
+\;\Longrightarrow\;
+\left(\frac{x}{\beta}\right)^{\alpha} = \frac{\alpha-1}{\alpha}
+\end{equation}
+
+Por lo tanto:
+
+\begin{equation}
+\text{Moda} = \begin{cases}
+\beta\left(\dfrac{\alpha-1}{\alpha}\right)^{1/\alpha} & \text{si } \alpha > 1 \\[2ex]
+0 & \text{si } \alpha \leq 1
+\end{cases}
+\end{equation}
+
+## Medidas de dispersión
+
+### Varianza
+
+La varianza se calcula como $\text{Var}(X) = E(X^2) - [E(X)]^2$. Con $n = 2$, $E(X^2) = \beta^2\,\Gamma(1 + 2/\alpha)$, entonces:
+
+\begin{equation}
+\text{Var}(X) = \beta^2\left[\Gamma\!\left(1 + \frac{2}{\alpha}\right) - \Gamma^2\!\left(1 + \frac{1}{\alpha}\right)\right]
+\end{equation}
+
+### Desviación estándar
+
+\begin{equation}
+\sigma = \sqrt{\text{Var}(X)} = \beta\sqrt{\Gamma\!\left(1 + \frac{2}{\alpha}\right) - \Gamma^2\!\left(1 + \frac{1}{\alpha}\right)}
+\end{equation}
+
+### Coeficiente de variación
+
+El coeficiente de variación es el cociente entre la desviación estándar y la media:
+
+\begin{equation}
+CV = \frac{\sigma}{\mu} = \sqrt{\frac{\Gamma\!\left(1 + \frac{2}{\alpha}\right)}{\Gamma^2\!\left(1 + \frac{1}{\alpha}\right)} - 1}
+\end{equation}
+
+Nótese que el **CV depende únicamente de** $\alpha$ y no de $\beta$: el parámetro de escala no altera la variabilidad relativa. El CV decrece al aumentar $\alpha$.
+
+## Resumen de las características
+
+```{r}
+#| label: tabla-caracteristicas
+caract_weibull <- function(alpha, beta) {
+  media <- beta * gamma(1 + 1 / alpha)
+  varianza <- beta^2 * (gamma(1 + 2 / alpha) - gamma(1 + 1 / alpha)^2)
+  mediana <- beta * log(2)^(1 / alpha)
+  moda <- ifelse(alpha > 1, beta * ((alpha - 1) / alpha)^(1 / alpha), 0)
+  data.frame(
+    Distribucion = paste0("Weibull(", alpha, ", ", beta, ")"),
+    alpha = alpha, beta = beta,
+    Media = media, Mediana = mediana, Moda = moda,
+    Varianza = varianza, Desv_Est = sqrt(varianza),
+    CV = sqrt(varianza) / media
+  )
+}
+
+tabla_caract <- bind_rows(
+  caract_weibull(0.5, 1), caract_weibull(1, 1), caract_weibull(1.5, 1),
+  caract_weibull(2, 1), caract_weibull(3, 1), caract_weibull(5, 1),
+  caract_weibull(2, 3)
+)
+
+kable(tabla_caract,
+      caption = "Características de diferentes distribuciones Weibull",
+      digits = 4) |>
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+```
+
+Se observa que para $\alpha < 3.6$ aproximadamente se cumple Media \> Mediana \> Moda (asimetría positiva), y que el CV disminuye conforme $\alpha$ aumenta: la distribución se concentra alrededor de su media.
+
+```{r}
+#| label: cv-grafico
+alpha_cv <- seq(0.3, 10, length.out = 400)
+df_cv <- data.frame(alpha = alpha_cv,
+                    CV = sqrt(gamma(1 + 2 / alpha_cv) / gamma(1 + 1 / alpha_cv)^2 - 1))
+
+ggplot(df_cv, aes(x = alpha, y = CV)) +
+  geom_line(color = "firebrick", linewidth = 1.3) +
+  geom_hline(yintercept = 1, linetype = "dashed", alpha = 0.6) +
+  labs(title = "Coeficiente de variación de la Weibull",
+       subtitle = "El CV depende solo de α (CV = 1 cuando α = 1, caso exponencial)",
+       x = "Parámetro de forma α", y = "CV") +
+  theme_minimal() +
+  coord_cartesian(ylim = c(0, 5)) +
+  theme(plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5))
+```
+
+# Simulación y comparación con parámetros teóricos
+
+Consideremos una distribución $\text{Weibull}(2, 3)$ y generemos diferentes tamaños de muestra:
+
+```{r}
+#| label: simulacion
+set.seed(2026)
+
+# Parámetros de la distribución Weibull(2, 3)
+alpha <- 2
+beta <- 3
+
+# Parámetros teóricos
+media_teorica <- beta * gamma(1 + 1 / alpha)
+varianza_teorica <- beta^2 * (gamma(1 + 2 / alpha) - gamma(1 + 1 / alpha)^2)
+desv_std_teorica <- sqrt(varianza_teorica)
+moda_teorica <- beta * ((alpha - 1) / alpha)^(1 / alpha)
+cv_teorico <- desv_std_teorica / media_teorica
+
+# Tamaños de muestra a evaluar
+tamaños <- c(100, 500, 1000, 5000, 10000)
+
+# Función para simular y calcular estadísticos
+simular_weibull <- function(n, alpha, beta) {
+  muestra <- rweibull(n, shape = alpha, scale = beta)
+  data.frame(
+    n = n,
+    media_muestral = mean(muestra),
+    varianza_muestral = var(muestra),
+    desv_std_muestral = sd(muestra),
+    cv_muestral = sd(muestra) / mean(muestra),
+    minimo = min(muestra),
+    maximo = max(muestra)
+  )
+}
+
+# Realizar simulaciones
+resultados_sim <- do.call(rbind, lapply(tamaños, simular_weibull, alpha = alpha, beta = beta))
+
+# Agregar valores teóricos para comparación
+resultados_sim$media_teorica <- media_teorica
+resultados_sim$varianza_teorica <- varianza_teorica
+resultados_sim$desv_std_teorica <- desv_std_teorica
+resultados_sim$cv_teorico <- cv_teorico
+
+kable(resultados_sim,
+      caption = "Comparación de estadísticos muestrales vs teóricos para Weibull(2, 3)",
+      digits = 4) |>
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+```
+
+## Simulación por transformada inversa
+
+Como $F^{-1}(u) = \beta[-\ln(1-u)]^{1/\alpha}$, podemos generar valores Weibull a partir de uniformes y comprobar que coinciden en distribución con `rweibull`:
+
+```{r}
+#| label: transformada-inversa
+u <- runif(5000)
+x_inv <- beta * (-log(1 - u))^(1 / alpha)
+
+cat("Media (transformada inversa):", round(mean(x_inv), 4), "\n")
+cat("Media teórica:", round(media_teorica, 4), "\n")
+cat("Varianza (transformada inversa):", round(var(x_inv), 4), "\n")
+cat("Varianza teórica:", round(varianza_teorica, 4), "\n")
+
+# Prueba de Kolmogorov-Smirnov contra la Weibull(2, 3)
+ks.test(x_inv, "pweibull", shape = alpha, scale = beta)
+```
+
+## Visualización de la convergencia
+
+```{r}
+#| label: convergencia
+n_total <- 10000
+muestra_larga <- rweibull(n_total, shape = alpha, scale = beta)
+
+# Calcular medias acumuladas
+indices <- 1:n_total
+medias_acumuladas <- cumsum(muestra_larga) / indices
+
+df_convergencia <- data.frame(
+  n = indices,
+  media_acumulada = medias_acumuladas,
+  media_teorica = media_teorica
+)
+
+ggplot(df_convergencia, aes(x = n)) +
+  geom_line(aes(y = media_acumulada), color = "blue", alpha = 0.7) +
+  geom_hline(aes(yintercept = media_teorica), color = "red", linetype = "dashed", linewidth = 1) +
+  labs(title = "Convergencia de la media muestral hacia la media teórica",
+       subtitle = "Distribución Weibull(2, 3) - Ley de los grandes números",
+       x = "Tamaño de muestra (n)",
+       y = "Media acumulada",
+       caption = paste0("Línea roja: Media teórica = ", round(media_teorica, 4))) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5))
+```
+
+## Histograma vs densidad teórica
+
+```{r}
+#| label: histograma
+#| warning: false
+muestra_hist <- rweibull(5000, shape = alpha, scale = beta)
+
+ggplot(data.frame(x = muestra_hist), aes(x = x)) +
+  geom_histogram(aes(y = after_stat(density)),
+                 fill = "lightblue", color = "black", alpha = 0.7,
+                 boundary = 0, binwidth = 0.25) +
+  stat_function(fun = dweibull, args = list(shape = alpha, scale = beta),
+                color = "red", linewidth = 1.5, linetype = "dashed") +
+  geom_vline(xintercept = media_teorica, color = "darkgreen", linewidth = 1) +
+  geom_vline(xintercept = moda_teorica, color = "purple", linewidth = 1, linetype = "dotted") +
+  labs(title = "Histograma de muestra vs densidad teórica",
+       subtitle = "5000 observaciones de Weibull(2, 3)",
+       x = "Valores",
+       y = "Densidad",
+       caption = "Curva roja: densidad teórica | Verde: media | Morada: moda") +
+  theme_minimal() +
+  theme(
+    legend.title = element_text(size = 13),
+    legend.text = element_text(size = 13),
+    plot.title = element_text(size = 15, face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(size = 13, hjust = 0.5),
+    axis.text.x = element_text(size = 12),
+    axis.text.y = element_text(size = 12),
+    axis.title.x = element_text(face = "bold", size = 13),
+    axis.title.y = element_text(face = "bold", size = 13)
+  )
+```
+
+# Ejemplos prácticos
+
+::: {#exm-rodamientos}
+**Vida útil de rodamientos (confiabilidad)**
+
+La vida útil, en horas, de cierto tipo de rodamiento industrial sigue una distribución Weibull con parámetro de forma $\alpha = 2$ (desgaste) y parámetro de escala $\beta = 1000$ horas. Calcular la confiabilidad a las 800 horas, la vida mediana y la vida que sobrevive el 90 % de los rodamientos.
+
+```{r}
+#| label: ejemplo-rodamientos
+set.seed(123)
+
+# Parámetros del problema
+alpha_rod <- 2
+beta_rod <- 1000
+n_rod <- 2000
+
+# Simular 2000 rodamientos
+vida <- rweibull(n_rod, shape = alpha_rod, scale = beta_rod)
+
+# Confiabilidad a las 800 horas: P(X > 800)
+conf_sim <- mean(vida > 800)
+conf_teo <- exp(-(800 / beta_rod)^alpha_rod)
+
+# Vida mediana
+mediana_sim <- median(vida)
+mediana_teo <- beta_rod * log(2)^(1 / alpha_rod)
+
+# Vida que sobrevive el 90%: P(X > t) = 0.9  ->  t = F^-1(0.10)
+t90_sim <- quantile(vida, 0.10)
+t90_teo <- qweibull(0.10, shape = alpha_rod, scale = beta_rod)
+
+# Media
+media_teo <- beta_rod * gamma(1 + 1 / alpha_rod)
+
+cat("=== ANÁLISIS DE VIDA ÚTIL DE RODAMIENTOS ===\n")
+cat("Vida media (simulada):", round(mean(vida), 2), "h | teórica:", round(media_teo, 2), "h\n")
+cat("Confiabilidad a 800 h (simulada):", round(conf_sim, 4), "\n")
+cat("Confiabilidad a 800 h (teórica):", round(conf_teo, 4), "\n")
+cat("Vida mediana (simulada):", round(mediana_sim, 2), "h | teórica:", round(mediana_teo, 2), "h\n")
+cat("Vida con 90% de supervivencia (simulada):", round(t90_sim, 2), "h\n")
+cat("Vida con 90% de supervivencia (teórica):", round(t90_teo, 2), "h\n")
+
+# Visualización
+ggplot(data.frame(vida = vida), aes(x = vida)) +
+  geom_histogram(aes(y = after_stat(density)),
+                 fill = "orange", color = "black", alpha = 0.7, boundary = 0, binwidth = 100) +
+  stat_function(fun = dweibull, args = list(shape = alpha_rod, scale = beta_rod),
+                color = "firebrick", linewidth = 1.2) +
+  geom_vline(xintercept = media_teo, color = "red", linewidth = 1, linetype = "dashed") +
+  geom_vline(xintercept = 800, color = "blue", linewidth = 1, linetype = "dotted") +
+  labs(title = "Distribución de la vida útil de rodamientos",
+       x = "Vida útil (horas)",
+       y = "Densidad",
+       caption = "Línea roja discontinua: Media teórica | Línea azul: 800 horas") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 15, face = "bold", hjust = 0.5),
+    axis.text.x = element_text(size = 12),
+    axis.text.y = element_text(size = 12),
+    axis.title.x = element_text(face = "bold", size = 13),
+    axis.title.y = element_text(face = "bold", size = 13)
+  )
+```
+:::
+
+::: {#exm-viento}
+**Velocidad del viento**
+
+La distribución Weibull es el modelo estándar para la velocidad del viento en estudios de energía eólica. Supongamos que en cierto sitio la velocidad media diaria (m/s) sigue una Weibull con $\alpha = 2.2$ y $\beta = 7$ m/s. Un aerogenerador solo produce energía si la velocidad está entre 3 m/s (arranque) y 25 m/s (corte). ¿Qué proporción del tiempo opera?
+
+```{r}
+#| label: ejemplo-viento
+set.seed(456)
+
+alpha_v <- 2.2
+beta_v <- 7
+n_dias <- 3650   # diez años de datos simulados
+
+viento <- rweibull(n_dias, shape = alpha_v, scale = beta_v)
+
+# Proporción de tiempo operativo: P(3 <= X <= 25)
+prop_sim <- mean(viento >= 3 & viento <= 25)
+prop_teo <- pweibull(25, alpha_v, beta_v) - pweibull(3, alpha_v, beta_v)
+
+cat("=== ANÁLISIS DE VELOCIDAD DEL VIENTO ===\n")
+cat("Velocidad media (simulada):", round(mean(viento), 3), "m/s\n")
+cat("Velocidad media (teórica):", round(beta_v * gamma(1 + 1 / alpha_v), 3), "m/s\n")
+cat("Proporción de operación (simulada):", round(prop_sim, 4), "\n")
+cat("Proporción de operación (teórica):", round(prop_teo, 4), "\n")
+
+ggplot(data.frame(viento = viento), aes(x = viento)) +
+  geom_histogram(aes(y = after_stat(density)),
+                 fill = "lightgreen", color = "black", alpha = 0.7, boundary = 0, binwidth = 1) +
+  stat_function(fun = dweibull, args = list(shape = alpha_v, scale = beta_v),
+                color = "darkgreen", linewidth = 1.2) +
+  annotate("rect", xmin = 3, xmax = 25, ymin = 0, ymax = Inf, alpha = 0.15, fill = "blue") +
+  labs(title = "Distribución de la velocidad del viento",
+       x = "Velocidad (m/s)",
+       y = "Densidad",
+       caption = "Zona azul: rango de operación del aerogenerador (3 a 25 m/s)") +
+  theme_minimal() +
+  theme(plot.title = element_text(size = 15, face = "bold", hjust = 0.5))
+```
+:::
+
+# Verificación del teorema central del límite
+
+El Teorema Central del Límite establece que las medias muestrales de cualquier distribución (con media y varianza finitas) se aproximan a una distribución normal cuando el tamaño de muestra es suficientemente grande. En particular, si $X_1, \dots, X_n$ son independientes y con la misma distribución Weibull($\alpha, \beta$):
+
+\begin{equation}
+\bar{X}_n \;\approx\; N\!\left(\mu,\ \frac{\sigma^2}{n}\right), \qquad \mu = \beta\,\Gamma\!\left(1+\tfrac{1}{\alpha}\right),\quad \sigma^2 = \beta^2\left[\Gamma\!\left(1+\tfrac{2}{\alpha}\right) - \Gamma^2\!\left(1+\tfrac{1}{\alpha}\right)\right]
+\end{equation}
+
+Como la Weibull con $\alpha < 3.6$ es asimétrica a la derecha, resulta un buen caso para observar cómo la distribución de las medias se *normaliza* al crecer $n$. Usaremos $\alpha = 1.5$ y $\beta = 2$.
+
+## Simulación con diferentes tamaños de muestra
+
+```{r}
+#| label: tcl-simulacion
+set.seed(2026)
+
+# Parámetros de la distribución Weibull
+alpha_tcl <- 1.5
+beta_tcl <- 2
+media_poblacional <- beta_tcl * gamma(1 + 1 / alpha_tcl)
+varianza_poblacional <- beta_tcl^2 * (gamma(1 + 2 / alpha_tcl) - gamma(1 + 1 / alpha_tcl)^2)
+
+# Diferentes tamaños de muestra
+tamaños_muestra <- c(1, 5, 10, 30, 50, 100)
+num_muestras <- 1000   # Número de medias muestrales a generar
+
+# Función para generar medias muestrales
+generar_medias <- function(n, num_sim, alpha, beta) {
+  replicate(num_sim, mean(rweibull(n, shape = alpha, scale = beta)))
+}
+
+# Generar medias para cada tamaño de muestra
+resultados_tcl <- list()
+for (i in seq_along(tamaños_muestra)) {
+  n <- tamaños_muestra[i]
+  medias <- generar_medias(n, num_muestras, alpha_tcl, beta_tcl)
+
+  resultados_tcl[[i]] <- data.frame(
+    medias = medias,
+    n = n,
+    varianza_teorica_media = varianza_poblacional / n,
+    desv_std_teorica_media = sqrt(varianza_poblacional / n)
+  )
+}
+
+# Combinar resultados
+df_tcl <- do.call(rbind, resultados_tcl)
+df_tcl$n_factor <- factor(paste("n =", df_tcl$n), levels = paste("n =", tamaños_muestra))
+```
+
+## Visualización de la normalización
+
+```{r}
+#| label: tcl-visualizacion
+# Curvas normales teóricas N(μ, σ²/n)
+df_normal_teorica <- data.frame()
+x_range_tcl <- seq(media_poblacional - 4 * sqrt(varianza_poblacional),
+                   media_poblacional + 4 * sqrt(varianza_poblacional),
+                   length.out = 400)
+
+for (n in tamaños_muestra) {
+  df_temp <- data.frame(
+    x = x_range_tcl,
+    y = dnorm(x_range_tcl, mean = media_poblacional, sd = sqrt(varianza_poblacional / n)),
+    n_factor = paste("n =", n)
+  )
+  df_normal_teorica <- rbind(df_normal_teorica, df_temp)
+}
+df_normal_teorica$n_factor <- factor(df_normal_teorica$n_factor, levels = levels(df_tcl$n_factor))
+
+# Gráfico de histogramas para diferentes tamaños de muestra
+ggplot(df_tcl, aes(x = medias)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 30,
+                 fill = "lightblue", color = "black", alpha = 0.7) +
+  geom_vline(xintercept = media_poblacional, color = "red", linewidth = 1, linetype = "dashed") +
+  # Superponer curva normal teórica
+  geom_line(data = df_normal_teorica, aes(x = x, y = y),
+            color = "red", linewidth = 1, alpha = 0.65) +
+  facet_wrap(~n_factor, scales = "free", ncol = 3) +
+  labs(title = "Teorema Central del Límite - Distribución de Medias Muestrales",
+       subtitle = "Distribución Weibull(1.5, 2) con diferentes tamaños de muestra",
+       x = "Media muestral",
+       y = "Densidad") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5))
+```
+
+## Comparación de varianzas
+
+```{r}
+#| label: tcl-varianzas
+estadisticos_tcl <- df_tcl |>
+  group_by(n) |>
+  summarise(
+    media_observada = mean(medias),
+    media_teorica = media_poblacional,
+    varianza_observada = var(medias),
+    varianza_teorica = first(varianza_teorica_media),
+    desv_std_observada = sd(medias),
+    desv_std_teorica = first(desv_std_teorica_media),
+    .groups = "drop"
+  )
+
+kable(estadisticos_tcl,
+      caption = "Comparación de varianzas teóricas vs observadas",
+      digits = 4) |>
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+
+# Gráfico de convergencia de varianzas
+ggplot(estadisticos_tcl, aes(x = n)) +
+  geom_point(aes(y = varianza_observada, color = "Observada"), size = 3) +
+  geom_line(aes(y = varianza_observada, color = "Observada"), linewidth = 1) +
+  geom_point(aes(y = varianza_teorica, color = "Teórica"), size = 3) +
+  geom_line(aes(y = varianza_teorica, color = "Teórica"), linewidth = 1) +
+  scale_color_manual(values = c("Observada" = "blue", "Teórica" = "red")) +
+  labs(title = "Disminución de la Varianza de las Medias Muestrales",
+       subtitle = "Var(X̄) = σ²/n",
+       x = "Tamaño de muestra (n)",
+       y = "Varianza de las medias",
+       color = "Tipo") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5))
+```
+
+## Asimetría y curtosis de las medias
+
+Si las medias se aproximan a una normal, su **asimetría** debe acercarse a 0 y su **curtosis** a 3.
+
+```{r}
+#| label: tcl-asimetria
+asimetria <- function(x) mean((x - mean(x))^3) / sd(x)^3 * (1 - 1 / length(x))^(3 / 2)
+curtosis <- function(x) mean((x - mean(x))^4) / (mean((x - mean(x))^2))^2
+
+df_forma <- df_tcl |>
+  group_by(n) |>
+  summarise(asimetria = asimetria(medias),
+            curtosis = curtosis(medias),
+            .groups = "drop")
+
+kable(df_forma,
+      caption = "Asimetría y curtosis de las medias muestrales (normal: 0 y 3)",
+      digits = 4) |>
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+```
+
+## Prueba de normalidad de las medias
+
+```{r}
+#| label: tcl-normalidad
+# Prueba de Shapiro-Wilk para n = 100
+medias_n100 <- df_tcl[df_tcl$n == 100, "medias"]
+shapiro_test <- shapiro.test(medias_n100)
+
+# Q-Q plot para n = 100
+ggplot(data.frame(medias = medias_n100), aes(sample = medias)) +
+  geom_qq() +
+  geom_qq_line(color = "red", linewidth = 1) +
+  labs(title = "Q-Q Plot - Medias Muestrales (n=100)",
+       subtitle = paste("Prueba Shapiro-Wilk: W =", round(shapiro_test$statistic, 4),
+                        ", p-valor =", round(shapiro_test$p.value, 4)),
+       x = "Cuantiles teóricos (Normal)", y = "Cuantiles observados") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5))
+```
+
+Conforme $n$ aumenta, los histogramas de las medias se ajustan cada vez mejor a la curva normal, la asimetría tiende a 0, la curtosis a 3, la varianza disminuye como $\sigma^2/n$ y el Q-Q plot se alinea con la recta: esto verifica el teorema central del límite para la distribución Weibull.
+
+# Ejercicios propuestos
+
+::: {#exr-vida_componente}
+**Análisis de vida de un componente electrónico**
+
+La vida útil (en miles de horas) de un componente electrónico sigue una distribución Weibull con $\alpha = 1.8$ y $\beta = 5$.
+
+1.  Crear un histograma de las vidas simuladas ($n = 1000$) y superponer la densidad teórica.
+2.  ¿Cuál es el percentil 75 de la vida útil?
+3.  ¿Cuál es la probabilidad de que el componente dure menos de 3 mil horas? ¿Y más de 8 mil horas?
+
+```{r}
+#| label: ejercicio-vida
+set.seed(789)
+n <- 1000
+alpha_e <- 1.8
+beta_e <- 5
+
+data_vida <- tibble(Muestra = 1:n, Vida = rweibull(n, shape = alpha_e, scale = beta_e))
+
+q75_muestral <- quantile(data_vida$Vida, probs = 0.75)
+q75_teorico <- qweibull(0.75, shape = alpha_e, scale = beta_e)
+
+ggplot(data_vida) +
+  geom_histogram(aes(x = Vida, y = after_stat(density)), fill = "#852AAA", color = "black",
+                 boundary = 0, binwidth = 0.5, alpha = 0.8) +
+  stat_function(fun = dweibull, args = list(shape = alpha_e, scale = beta_e),
+                color = "red", linewidth = 1, linetype = "dashed") +
+  geom_vline(xintercept = q75_muestral, color = "green", linewidth = 1, linetype = "dashed") +
+  geom_vline(xintercept = q75_teorico, color = "gold", linewidth = 1, linetype = "dashed") +
+  labs(title = "Distribución de la vida útil del componente",
+       x = "Vida (miles de horas)",
+       y = "Densidad",
+       caption = "Curva roja: Densidad teórica | Verde: Percentil 75 muestral | Amarilla: Percentil 75 teórico") +
+  theme_bw()
+
+cat("Percentil 75 muestral:", round(q75_muestral, 4), "miles de horas\n")
+cat("Percentil 75 teórico:", round(q75_teorico, 4), "miles de horas\n")
+cat("P(X < 3) =", round(pweibull(3, alpha_e, beta_e), 4), "\n")
+cat("P(X > 8) =", round(pweibull(8, alpha_e, beta_e, lower.tail = FALSE), 4), "\n")
+```
+:::
+
+::: {#exr-tcl_asimetrica}
+**Verificación del TCL con una Weibull muy asimétrica**
+
+Verificar el teorema central del límite usando una distribución Weibull con $\alpha = 0.8$ y $\beta = 1$, que es fuertemente sesgada a la derecha.
+
+1.  Generar una muestra de 2000 valores y graficar su histograma junto con la densidad teórica.
+
+```{r}
+#| label: ejercicio-tcl-1
+set.seed(321)
+alpha_a <- 0.8
+beta_a <- 1
+
+data_asim <- tibble(x = rweibull(2000, shape = alpha_a, scale = beta_a))
+
+ggplot(data_asim) +
+  geom_histogram(aes(x = x, y = after_stat(density)), fill = "#852AAA", color = "black",
+                 boundary = 0, binwidth = 0.25) +
+  stat_function(fun = dweibull, args = list(shape = alpha_a, scale = beta_a),
+                color = "red", linewidth = 1) +
+  coord_cartesian(xlim = c(0, 8), ylim = c(0, 2)) +
+  theme_bw()
+```
+
+2.  Para tamaños de muestra $n = 5, 15, 30, 60, 120$:
+    - Generar 800 medias muestrales de cada tamaño.
+    - Crear histogramas mostrando la normalización.
+    - Calcular asimetría y curtosis de las distribuciones de medias.
+
+```{r}
+#| label: ejercicio-tcl-2
+set.seed(321)
+tamaños_muestra <- c(5, 15, 30, 60, 120)
+num_muestras <- 800
+
+media_a <- beta_a * gamma(1 + 1 / alpha_a)
+var_a <- beta_a^2 * (gamma(1 + 2 / alpha_a) - gamma(1 + 1 / alpha_a)^2)
+
+resultados <- lapply(tamaños_muestra, function(n) {
+  data.frame(medias = replicate(num_muestras, mean(rweibull(n, alpha_a, beta_a))), n = n)
+})
+df_asim <- do.call(rbind, resultados)
+df_asim$n_factor <- factor(paste("n =", df_asim$n), levels = paste("n =", tamaños_muestra))
+
+ggplot(df_asim, aes(x = medias)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 30,
+                 fill = "lightblue", color = "black", alpha = 0.7) +
+  facet_wrap(~n_factor, scales = "free", ncol = 3) +
+  labs(title = "Teorema Central del Límite - Distribución de Medias Muestrales",
+       subtitle = "Distribución Weibull(0.8, 1) con diferentes tamaños de muestra",
+       x = "Media muestral", y = "Densidad") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5))
+
+df_asim |>
+  group_by(n) |>
+  summarise(asimetria = asimetria(medias),
+            curtosis = curtosis(medias),
+            .groups = "drop") |>
+  kable(caption = "Asimetría y curtosis de las medias (normal: 0 y 3)", digits = 4) |>
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+```
+
+3.  ¿A partir de qué tamaño de muestra la distribución de medias se ve aproximadamente normal? Comparar con lo observado para $\alpha = 1.5$ en la sección anterior y explicar por qué una Weibull más asimétrica requiere un $n$ mayor.
+:::
+
+::: {#exr-estimacion}
+**Estimación de parámetros**
+
+Se observó la siguiente muestra de tiempos de falla (en meses) de 15 equipos:
+
+`3.2, 5.1, 6.4, 7.0, 7.9, 8.3, 9.1, 9.8, 10.5, 11.2, 12.4, 13.0, 14.8, 16.5, 19.7`
+
+1.  Estimar $\alpha$ y $\beta$ por máxima verosimilitud.
+2.  Superponer la densidad ajustada al histograma de los datos.
+3.  Usando los parámetros estimados, calcular la media, la moda y el CV de la distribución ajustada.
+
+```{r}
+#| label: ejercicio-estimacion
+datos <- c(3.2, 5.1, 6.4, 7.0, 7.9, 8.3, 9.1, 9.8, 10.5, 11.2, 12.4, 13.0, 14.8, 16.5, 19.7)
+
+# Log-verosimilitud negativa
+nll <- function(par) {
+  -sum(dweibull(datos, shape = par[1], scale = par[2], log = TRUE))
+}
+ajuste <- optim(par = c(1, mean(datos)), fn = nll, method = "L-BFGS-B", lower = c(0.01, 0.01))
+
+alpha_hat <- ajuste$par[1]
+beta_hat <- ajuste$par[2]
+
+cat("α estimado:", round(alpha_hat, 4), "\n")
+cat("β estimado:", round(beta_hat, 4), "\n")
+
+caract_weibull(round(alpha_hat, 3), round(beta_hat, 3)) |>
+  select(Media, Mediana, Moda, Desv_Est, CV) |>
+  kable(caption = "Características de la distribución ajustada", digits = 4) |>
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+
+ggplot(data.frame(x = datos), aes(x = x)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 8, fill = "lightblue", color = "black") +
+  stat_function(fun = dweibull, args = list(shape = alpha_hat, scale = beta_hat),
+                color = "red", linewidth = 1.2) +
+  labs(title = "Ajuste Weibull por máxima verosimilitud",
+       x = "Tiempo de falla (meses)", y = "Densidad") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+:::
+
+::: {#exr-weibull_exponencial}
+**Relación entre la Weibull y la exponencial**
+
+Demostrar (analítica y numéricamente) que si $X \sim \text{Weibull}(\alpha, \beta)$ entonces $Y = (X/\beta)^{\alpha} \sim \text{Exp}(1)$.
+
+```{r}
+#| label: ejercicio-relacion
+set.seed(555)
+x <- rweibull(10000, shape = 2.5, scale = 4)
+y <- (x / 4)^2.5
+
+ggplot(data.frame(y = y), aes(x = y)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 40,
+                 fill = "lightblue", color = "black", boundary = 0) +
+  stat_function(fun = dexp, args = list(rate = 1), color = "red", linewidth = 1.2) +
+  labs(title = "Transformación (X/β)^α de una Weibull",
+       subtitle = "La curva roja es la densidad Exp(1)",
+       x = "y", y = "Densidad") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5))
+
+ks.test(y, "pexp", rate = 1)
+```
+:::
+
+# Referencias
+
+- Rincón, L. (2012). *Introducción a la Probabilidad*. Facultad de Ciencias, UNAM. Distribución Weibull, pp. 278-281.
